@@ -1,4 +1,4 @@
-package tk.hipogriff.fallenkingdoms.engine.debug;
+package FallenKingdoms.engine.debug;
 
 public class Logger {
 

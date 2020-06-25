@@ -1,4 +1,4 @@
-package tk.hipogriff.fallenkingdoms.standard;
+package FallenKingdoms.standard;
 
 public class FileExtension {
 

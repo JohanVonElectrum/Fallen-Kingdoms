@@ -1,4 +1,4 @@
-package tk.hipogriff.fallenkingdoms.error;
+package FallenKingdoms.error;
 
 public class DimensionSizeException extends RuntimeException {
 

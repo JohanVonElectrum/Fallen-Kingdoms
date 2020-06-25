@@ -1,15 +1,19 @@
-#version 140
+#version 460 core
 
-in vec2 position;
-in vec2 uvs;
+in vec3 position;
+in vec3 color;
+in vec2 textureCoord;
 
-uniform vec4 matColor;
+out vec3 passColor;
+out vec2 passTextureCoord;
+
 uniform mat4 projection;
-out vec4 color;
+uniform mat4 view;
+uniform mat4 transform;
+uniform float scale;
 
 void main() {
-    vec2 worldPosition = position;
-
-    gl_Position = projection * vec4(worldPosition, 0, 1);
-    color = matColor;
+    gl_Position = projection * view * transform * vec4(position * scale, 1.0);
+    passColor = color;
+    passTextureCoord = textureCoord;
 }

@@ -1,158 +1,166 @@
-package tk.hipogriff.fallenkingdoms.engine;
+package FallenKingdoms.engine.io;
 
-import org.lwjgl.*;
-import org.lwjgl.glfw.*;
-import org.lwjgl.opengl.*;
-import org.lwjgl.system.*;
-import tk.hipogriff.fallenkingdoms.engine.types.Color;
-import tk.hipogriff.fallenkingdoms.math.Matrix4x4;
+import FallenKingdoms.data.types.Color;
+import FallenKingdoms.data.types.Matrix4f;
+import FallenKingdoms.data.types.Rect;
+import FallenKingdoms.data.types.Vector2Int;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWVidMode;
+import org.lwjgl.glfw.GLFWWindowSizeCallback;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL11;
 
-import java.nio.*;
-
-import static org.lwjgl.glfw.Callbacks.*;
-import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.system.MemoryStack.*;
-import static org.lwjgl.system.MemoryUtil.*;
+import java.nio.IntBuffer;
 
 public class Window {
 
-    // ID de la ventana
+    private int width, height;
+    private String title;
     private long window;
 
-    // Datos de la ventana
-    private String title;
-    private int width, height;
-    private boolean resizable;
-    private boolean visible;
+    public int frames;
+    public long time;
 
-    float[] verts = new float[] {
-            0, 1,
-            1, 1,
-            1, 0,
+    public Input input;
 
-            1, 0,
-            0, 0,
-            0, 1,
-    };
+    private Color backgroundColor;
 
-    float[] uvs = new float[] {
-            0, 0,
-            1, 0,
-            1, 1,
+    private GLFWWindowSizeCallback sizeCallback;
 
-            1, 1,
-            0, 1,
-            0, 0
-    };
+    private boolean isResized;
+    private boolean isFullscreen;
+    private Rect screenResolution;
+    private int[] windowPosX = new int[1], windowPosY = new int[1];
 
-    public Window(String title, int width, int height, boolean resizable, boolean visible) {
-        this.title = title;
+    private Matrix4f projectionMatrix;
+
+    public Window(int width, int height, String title) {
         this.width = width;
         this.height = height;
-        this.resizable = resizable;
-        this.visible = visible;
+        this.title = title;
+
+        //projectionMatrix = Matrix4f.projection(70.0f, (float) width / (float) height, 0.1f, 1000.0f);
+        projectionMatrix = Matrix4f.ortho(0, width, height, 0, -100, 100);
     }
 
-    public void run() {
-        System.out.println("Abriendo ventana " + title + " con LWGJL " + Version.getVersion() + "...");
+    public void create() {
+        if (!GLFW.glfwInit()) {
+            System.err.println("ERROR: GLFW wasn't initialized!");
+            System.exit(-1);
+        }
 
-        init();
-        loop();
+        input = new Input();
+        window = GLFW.glfwCreateWindow(isFullscreen ? 1920 : width, isFullscreen ? 1080 : height, title, isFullscreen ? GLFW.glfwGetPrimaryMonitor() : 0, 0);
 
-        // Libera las callbacks y destruye la ventana.
-        glfwFreeCallbacks(window);
-        glfwDestroyWindow(window);
+        if (window == 0) {
+            System.err.println("ERROR: window wasn't created!");
+            System.exit(-1);
+        }
 
-        // Termina GLFW y libera las callbacks de error.
-        glfwTerminate();
-        glfwSetErrorCallback(null).free();
-    }
-
-    private void init() {
-        // Crea una callback de error. La implementación por defecto mostrará el mensaje de error en System.err.
-        GLFWErrorCallback.createPrint(System.err).set();
-
-        // Inicializa GLFW. La mayoria de funciones de GLFW no funcionarán antes de ejecutar este método.
-        if ( !glfwInit() ) throw new IllegalStateException("Unable to initialize GLFW");
-
-        // Configuración de GLFW
-        glfwDefaultWindowHints(); // opcional, las sugerencias de la ventana actual ya son las predeterminadas.
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // la ventana se mantendrá invisible después de la creación.
-        glfwWindowHint(GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE); // La ventana podrá cambiarse de tamaño.
-
-        // Creación de la ventana
-        window = glfwCreateWindow(width, height, title, NULL, NULL);
-        if ( window == NULL ) throw new RuntimeException("Failed to create the GLFW window");
-
-        // Crea una callback para el teclado. Se llamará cada vez que se presione, repita o suelte una tecla.
-        glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
-            if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE ) glfwSetWindowShouldClose(window, true); // Condición del bucle principal.
-        });
-
-        // Obtiene la pila de threads y empuja un nuevo frame
-        try ( MemoryStack stack = stackPush() ) {
-            IntBuffer pWidth = stack.mallocInt(1); // int*
-            IntBuffer pHeight = stack.mallocInt(1); // int*
-
-            // Devuelve el tamaño de la ventana especificado en glfwCreateWindow
-            glfwGetWindowSize(window, pWidth, pHeight);
-
-            // Devuelve la resolución del monitor primario
-            GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-
-            // Centra la ventana
-            glfwSetWindowPos(window, (vidmode.width() - pWidth.get(0)) / 2, (vidmode.height() - pHeight.get(0)) / 2);
-        } // el frame de la pila se saltará automáticamente
-
-        // Hace el contexto actual de OpenGL
-        glfwMakeContextCurrent(window);
-        // Activa el v-sync
-        glfwSwapInterval(1);
-
-        // Hace la ventana visible
-        if (visible) glfwShowWindow(window);
-    }
-
-    private void loop() {
-        /*
-        Esta línea es crítica para la interoperación de LWJGL con el contexto OpenGL de GLFW, o cualquier contexto que
-        se gestione externamente. LWJGL detecta el contexto actual en el subproceso actual, crea la instancia de
-        GLCapabilities y hace que los enlaces OpenGL estén disponibles para su uso.
-        */
+        GLFWVidMode videoMode = GLFW.glfwGetVideoMode(GLFW.glfwGetPrimaryMonitor());
+        screenResolution = new Rect(videoMode.width(), videoMode.height());
+        windowPosX[0] = (screenResolution.width - width) / 2;
+        windowPosY[0] = (screenResolution.height - height) / 2;
+        GLFW.glfwSetWindowPos(window, windowPosX[0], windowPosY[0]);
+        GLFW.glfwMakeContextCurrent(window);
         GL.createCapabilities();
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
 
-        // Establece el color de limpiado,
-        glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
+        createCallbacks();
 
-        Mesh mesh = new Mesh(verts, uvs);
-        Shader shader = new Shader("DefaultShader");
+        GLFW.glfwShowWindow(window);
 
-        // Ejecuta el bucle de renderizado hasta que el usuario decida cerrar la ventan o pulse ESCAPE.
-        while ( !glfwWindowShouldClose(window) ) {
-            // Detección de eventos de ventana. La callback del teclado anterior solo se invocará durante esta llamada.
-            glfwPollEvents();
+        GLFW.glfwSwapInterval(1);
 
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+        time = System.currentTimeMillis();
+    }
 
-            shader.bind();
-            shader.setUniform("matColor", new Color(0, 1, 1, 1));
-            Matrix4x4 ortho = Matrix4x4.ortho(0, width, height, 0, -1, 1);
-            shader.setUniform("projection", ortho);
-            mesh.render();
-            shader.unbind();
+    private void createCallbacks() {
+        sizeCallback = new GLFWWindowSizeCallback() {
+            public void invoke(long window, int w, int h) {
+                width = w;
+                height = h;
+                isResized = true;
+            }
+        };
 
-            glfwSwapBuffers(window); // swap the color buffers
+        GLFW.glfwSetKeyCallback(window, input.getKeyboardCallback());
+        GLFW.glfwSetCursorPosCallback(window, input.getMouseMoveCallback());
+        GLFW.glfwSetMouseButtonCallback(window, input.getMouseButtonsCallback());
+        GLFW.glfwSetScrollCallback(window, input.getMouseScrollCallback());
+        GLFW.glfwSetWindowSizeCallback(window, sizeCallback);
+    }
+
+    public void update() {
+        if (isResized) {
+            GL11.glViewport(0, 0, width, height);
+            isResized = false;
+        }
+        GL11.glClearColor(backgroundColor.getR(), backgroundColor.getG(), backgroundColor.getB(), 1.0f);
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GLFW.glfwPollEvents();
+
+        frames++;
+        if (System.currentTimeMillis() > time + 1000) {
+            GLFW.glfwSetWindowTitle(window, "Hipogriff Kingdoms - FPS: " + frames);
+            time = System.currentTimeMillis();
+            frames = 0;
         }
     }
 
-    public void show() {
-        visible = true;
-        glfwShowWindow(window);
+    public void swapBuffers() {
+        GLFW.glfwSwapBuffers(window);
     }
 
-    public void hide() {
-        visible = false;
-        glfwHideWindow(window);
+    public boolean shouldClose() {
+        return GLFW.glfwWindowShouldClose(window);
+    }
+
+    public void destroy() {
+        input.destroy();
+        sizeCallback.free();
+        GLFW.glfwSetWindowShouldClose(window, true);
+        GLFW.glfwDestroyWindow(window);
+        GLFW.glfwTerminate();
+    }
+
+    public void setBackgroundColor(float r, float g, float b) {
+        backgroundColor = new Color(r, g, b);
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public long getWindow() {
+        return window;
+    }
+
+    public Matrix4f getProjectionMatrix() {
+        return projectionMatrix;
+    }
+
+    public boolean isFullscreen() {
+        return isFullscreen;
+    }
+
+    public void setFullscreen(boolean fullscreen) {
+        this.isFullscreen = fullscreen;
+        isResized = true;
+
+        if (isFullscreen) {
+            GLFW.glfwGetWindowPos(window, windowPosX, windowPosY);
+            GLFW.glfwSetWindowMonitor(window, GLFW.glfwGetPrimaryMonitor(), 0, 0, width, height, 0);
+        } else {
+            GLFW.glfwSetWindowMonitor(window, 0, windowPosX[0], windowPosY[0], width, height, 0);
+        }
     }
 }

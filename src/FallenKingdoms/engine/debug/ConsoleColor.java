@@ -1,6 +1,5 @@
-package tk.hipogriff.fallenkingdoms.engine.debug;
+package FallenKingdoms.engine.debug;
 
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**

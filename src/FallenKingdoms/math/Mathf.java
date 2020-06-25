@@ -1,4 +1,4 @@
-package tk.hipogriff.fallenkingdoms.math;
+package FallenKingdoms.math;
 
 public class Mathf {
 
@@ -8,12 +8,10 @@ public class Mathf {
         else return value;
     }
 
-    public static Vector clamp(Vector value, float min, float max) {
-        Vector output = value.clone();
-        for (int i = 0; i < output.getDimension(); i++) {
-            output.setComponent(clamp(output.getComponent(i), min, max), i);
-        }
-        return output;
+    public static int mod(int a, int b) {
+        b = Math.abs(b);
+        while (a < 0 || a >= b) a -= b * (int) Math.signum(a);
+        return a;
     }
 
 }
