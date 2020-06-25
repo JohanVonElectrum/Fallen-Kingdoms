@@ -4,6 +4,8 @@ import org.lwjgl.*;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.*;
+import tk.hipogriff.fallenkingdoms.engine.types.Color;
+import tk.hipogriff.fallenkingdoms.math.Matrix4x4;
 
 import java.nio.*;
 
@@ -23,6 +25,26 @@ public class Window {
     private int width, height;
     private boolean resizable;
     private boolean visible;
+
+    float[] verts = new float[] {
+            0, 1,
+            1, 1,
+            1, 0,
+
+            1, 0,
+            0, 0,
+            0, 1,
+    };
+
+    float[] uvs = new float[] {
+            0, 0,
+            1, 0,
+            1, 1,
+
+            1, 1,
+            0, 1,
+            0, 0
+    };
 
     public Window(String title, int width, int height, boolean resizable, boolean visible) {
         this.title = title;
@@ -57,15 +79,15 @@ public class Window {
         // Configuración de GLFW
         glfwDefaultWindowHints(); // opcional, las sugerencias de la ventana actual ya son las predeterminadas.
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // la ventana se mantendrá invisible después de la creación.
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // La ventana podrá cambiarse de tamaño. TODO: depende de "resizable"
+        glfwWindowHint(GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE); // La ventana podrá cambiarse de tamaño.
 
         // Creación de la ventana
-        window = glfwCreateWindow(300, 300, "Hello World!", NULL, NULL); //TODO: depende de width, height y title.
+        window = glfwCreateWindow(width, height, title, NULL, NULL);
         if ( window == NULL ) throw new RuntimeException("Failed to create the GLFW window");
 
         // Crea una callback para el teclado. Se llamará cada vez que se presione, repita o suelte una tecla.
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
-            if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE ) glfwSetWindowShouldClose(window, true); // We will detect this in the rendering loop
+            if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE ) glfwSetWindowShouldClose(window, true); // Condición del bucle principal.
         });
 
         // Obtiene la pila de threads y empuja un nuevo frame
@@ -80,11 +102,7 @@ public class Window {
             GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 
             // Centra la ventana
-            glfwSetWindowPos(
-                    window,
-                    (vidmode.width() - pWidth.get(0)) / 2,
-                    (vidmode.height() - pHeight.get(0)) / 2
-            );
+            glfwSetWindowPos(window, (vidmode.width() - pWidth.get(0)) / 2, (vidmode.height() - pHeight.get(0)) / 2);
         } // el frame de la pila se saltará automáticamente
 
         // Hace el contexto actual de OpenGL
@@ -93,7 +111,7 @@ public class Window {
         glfwSwapInterval(1);
 
         // Hace la ventana visible
-        glfwShowWindow(window); //TODO: depende de "visible"
+        if (visible) glfwShowWindow(window);
     }
 
     private void loop() {
@@ -105,16 +123,36 @@ public class Window {
         GL.createCapabilities();
 
         // Establece el color de limpiado,
-        glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+        glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
+
+        Mesh mesh = new Mesh(verts, uvs);
+        Shader shader = new Shader("DefaultShader");
 
         // Ejecuta el bucle de renderizado hasta que el usuario decida cerrar la ventan o pulse ESCAPE.
         while ( !glfwWindowShouldClose(window) ) {
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
-
-            glfwSwapBuffers(window); // swap the color buffers
-
             // Detección de eventos de ventana. La callback del teclado anterior solo se invocará durante esta llamada.
             glfwPollEvents();
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+
+            shader.bind();
+            shader.setUniform("matColor", new Color(0, 1, 1, 1));
+            Matrix4x4 ortho = Matrix4x4.ortho(0, width, height, 0, -1, 1);
+            shader.setUniform("projection", ortho);
+            mesh.render();
+            shader.unbind();
+
+            glfwSwapBuffers(window); // swap the color buffers
         }
+    }
+
+    public void show() {
+        visible = true;
+        glfwShowWindow(window);
+    }
+
+    public void hide() {
+        visible = false;
+        glfwHideWindow(window);
     }
 }

@@ -9,7 +9,8 @@ public class FallenKingdoms {
      */
 
     public static void main(String[] args) {
-        //TODO: Crear ventana y mostrarla.
+        Window window = new Window("Fallen Kingdoms", 800, 600, false, true);
+        window.run();
     }
 
 }
